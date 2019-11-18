@@ -1,6 +1,7 @@
-import asyncio, json
-from math import gcd as math_gcd
+import asyncio
+import json
 from functools import reduce
+from math import gcd as math_gcd
 
 import aioredis
 
@@ -30,26 +31,56 @@ class Scheduler:
     def __init__(self, cache):
         self.cache = cache
 
-    async def _init(self, servers):
+    async def get_server(self):
+        cfg = await self.cache.get('cfg')
+        if cfg:
+            cfg = json.loads(cfg)
+            await self.cache.watch('i')
+            tr = self.cache.multi_exec()
+            i = tr.get('i')  # cmd #1
+            if i < len(cfg) - 1:
+                tr.incr('i')  # cmd #2
+            else:  # or
+                tr.set('i', 0)  # cmd #2
+            try:
+                result = await tr.execute()
+            except aioredis.MultiExecError:
+                await self.get_server()
+            return cfg[result[0]]  # i = result[0]
+        else:
+            return
+
+    async def update_servers(self, servers):
+        if not servers:
+            return
+
+        self._configurate(servers)
+        scheduled = json.dumps(
+            [self._schedule() for _ in range(0, self.total_parts)])
+        await self._update_cache(scheduled)
+
+    async def _update_cache(self, scheduled):
+        await self.cache.watch('cfg', 'i')
+        tr = self.cache.multi_exec()
+        self.cache.set('cfg', scheduled)
+        self.cache.set('i', 0)
+        try:
+            await tr.execute()
+        except aioredis.MultiExecError:
+            await self._update_cache(scheduled)
+
+    def _configurate(self, servers):
         self.orig_servers = dict(servers)
         self.servers = [(k, v) for k, v in self.orig_servers.items()]
         self.max = max(self.servers, key=lambda x: x[1])[1]
         self.gcd = reduce(math_gcd, [weight for _, weight in self.servers])
         self.length = len(self.servers)
+        self.total_parts = sum(self.orig_servers.values())
         self.i = -1
         self.cw = 0
 
-    async def check_configuration(self):
-        _origin_cfg = await self.cache.get('cfg')
-        origin_cfg = json.loads(_origin_cfg)
-        if self.orig_servers != origin_cfg:
-            await self.set_servers(origin_cfg)
-
-    async def schedule(self):
-        await self.check_configuration()
+    def _schedule(self):
         while True:
-            self.i = await self.cache.get('i', self.i)
-            self.i = await self.cache.get('i', self.i)
             self.i = (self.i + 1) % self.length
             if self.i == 0:
                 self.cw = self.cw - self.gcd
@@ -58,11 +89,7 @@ class Scheduler:
                     if self.cw == 0:
                         return None
             if self.servers[self.i][1] >= self.cw:
-                await self.cache.set('i', self.i)
                 return self.servers[self.i]
-
-    async def set_servers(self, servers):
-        await self._init(servers)
 
 
 class Cache:
