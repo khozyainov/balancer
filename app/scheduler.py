@@ -41,13 +41,12 @@ class Scheduler:
         self.logger.debug('get cfg: %s', cfg)
         if cfg:
             cfg = json.loads(cfg)
-            i = await self.cache.incr('i')
-            if i < len(cfg):
-                return cfg[i]
-            else:
+            length = len(cfg)
+            i = await self.cache.incr('i') % length
+            if i > len(cfg)*100:
                 await self.cache.set('i', 0)
-                self.logger.debug('i > len(cfg), reset to 0, old i: %s', i)
-                return await self.get_server()
+                self.logger.debug('i > len(cfg)*100, reset to 0, old i: %s', i)
+            return cfg[i]
         else:
             return
 
