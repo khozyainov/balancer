@@ -42,10 +42,10 @@ async def index(request):
     if server:
         if urlsplit(server).netloc != origin_host:
             url = urljoin(f'{server}', path.lstrip('/'))
-            logger.debug('redirect to: %s', url)
+            logger.debug('redirect to cdn: %s', url)
             return redirect(url)
         else:
-            logger.debug('redirect to: %s', file_url)
+            logger.debug('redirect to origin: %s', file_url)
             return redirect(file_url)
     else:
         logger.error('no server available')
