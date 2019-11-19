@@ -9,6 +9,13 @@ docker-compose -f balancer-compose.yaml -f redis-compose.yaml  up --build -d
 ```bash 
 docker-compose -f test-compose.yaml up --build
 ```
+## Perfomance
+highload_test.py - скрипт для тестирования нагрузки, запускать после запуска сервиса
+
+```bash 
+python3 highload_test.py
+```
+
 
 ## Список методов
 Редирект на один из серверов
