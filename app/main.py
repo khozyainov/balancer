@@ -1,13 +1,13 @@
 import asyncio
 import os
 
-import uvloop
 from sanic import Sanic
 
 from app.views import index, configurate
 
 HOST = os.getenv('HOST')
 PORT = os.getenv('PORT')
+
 
 app = Sanic()
 
@@ -17,7 +17,7 @@ app.add_route(configurate, '/configurate', methods=['POST'])
 if __name__ == "__main__":
     server = app.create_server(HOST,
                                PORT,
-                               debug=True,
+                               debug=False,
                                access_log=False,
                                return_asyncio_server=True)
     loop = asyncio.get_event_loop()
