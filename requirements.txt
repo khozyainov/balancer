@@ -1,2 +1,4 @@
 sanic
 aioredis
+asynctest
+pytest-sanic

@@ -5,13 +5,6 @@ import os
 SERVICE_NAME = os.getenv('SERVICE', 'balancer')
 LOGLEVEL = os.getenv('LOGLEVEL', 'INFO').upper()
 
-ROOT_FOLDER = f'/var/log/app/'
-
-if not os.path.exists(ROOT_FOLDER):
-    os.makedirs(ROOT_FOLDER)
-
-LOG_NAME = ROOT_FOLDER + SERVICE_NAME + '.log'
-
 FORMATTER = ('%(asctime)s.%(msecs)03dZ [' + SERVICE_NAME +
              '] [%(funcName)s] %(levelname)s: %(message)s')
 
@@ -26,6 +19,13 @@ def get_console_handler(format_=format_):
 
 
 def get_file_handler(format_=format_):
+    ROOT_FOLDER = f'/var/log/app/'
+
+    if not os.path.exists(ROOT_FOLDER):
+        os.makedirs(ROOT_FOLDER)
+
+    LOG_NAME = ROOT_FOLDER + SERVICE_NAME + '.log'
+    
     file_handler = TimedRotatingFileHandler(filename=LOG_NAME,
                                             interval=1,
                                             when='midnight',
@@ -34,10 +34,11 @@ def get_file_handler(format_=format_):
     return file_handler
 
 
-def set_logger(logger_name):
+def set_logger(logger_name, file_logging=False):
     logger = logging.getLogger(logger_name)
     logger.setLevel(getattr(logging, LOGLEVEL))
     logger.addHandler(get_console_handler())
-    logger.addHandler(get_file_handler())
+    if file_logging:
+        logger.addHandler(get_file_handler())
     logger.propagate = False
     return logger

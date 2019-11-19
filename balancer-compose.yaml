@@ -2,7 +2,9 @@ version: "3.5"
 
 services:
   balancer:
-    build: .
+    build: 
+      context: .
+      dockerfile: ./docker/dev.Dockerfile
     container_name: balancer
     ports:
       - 8000:8000

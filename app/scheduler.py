@@ -1,11 +1,10 @@
-import asyncio
 import json
 import logging
 import os
 from functools import reduce
 from math import gcd as math_gcd
 
-import aioredis
+from aioredis import MultiExecError
 
 # http://kb.linuxvirtualserver.org/wiki/Weighted_Round-Robin_Scheduling
 # Supposing that there is a server set S = {S0, S1, …, Sn-1};
@@ -28,7 +27,9 @@ import aioredis
 #     if (W(Si) >= cw)
 #         return Si;
 # }
+
 SERVICE = os.getenv('SERVICE', 'balancer')
+
 
 class Scheduler:
     def __init__(self, cache):
@@ -64,7 +65,7 @@ class Scheduler:
         self.cache.set('i', 0)
         try:
             await tr.execute()
-        except aioredis.MultiExecError:
+        except MultiExecError:
             await self._update_cache(scheduled)
 
     def _configurate(self, servers):
@@ -89,22 +90,6 @@ class Scheduler:
             if self.servers[self.i][1] >= self.cw:
                 return self.servers[self.i]
 
-
-class Cache:
-    def __init__(self, address):
-        self.logger = logging.getLogger(SERVICE)
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(self._init(address))
-        self.logger.debug('connected to cache')
-
-    async def _init(self, address):
-        self._cache = await aioredis.create_redis_pool(
-            address=address,
-            minsize=2,
-            maxsize=500,
-            encoding="utf-8",
-        )
-
-    @property
-    def cache(self):
-        return self._cache
+    @staticmethod
+    def setup_scheduler(cache):
+        return Scheduler(cache)

@@ -1,9 +1,5 @@
 FROM python:alpine
 
-ENV APP /app
-ENV PYTHONPATH .
-WORKDIR $APP
-
 RUN apk add --no-cache gcc \
                        make \
                        musl-dev
@@ -11,6 +7,7 @@ RUN apk add --no-cache gcc \
 COPY requirements.txt /requirements.txt
 RUN pip install -r /requirements.txt
 
-COPY /app $APP
+COPY app /app
+ENV PYTHONPATH .
 
-CMD ["python", "main.py"]
+CMD ["python", "/app/main.py"]
