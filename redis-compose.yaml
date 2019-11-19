@@ -1,0 +1,14 @@
+version: "3.5"
+
+services:
+  redis:
+    image: bitnami/redis:latest
+    networks:
+      - balancer_network
+    container_name: redis
+    restart: always
+    env_file:
+      - redis.env
+
+networks:
+  balancer_network:

@@ -1,0 +1,19 @@
+version: "3.5"
+
+services:
+  balancer:
+    build: .
+    container_name: balancer
+    ports:
+      - 8000:8000
+    networks:
+      - balancer_network
+    restart: always
+    env_file:
+      - dev.env
+    volumes:
+      - ./var/log/app:/var/log/app
+
+networks:
+  balancer_network:
+    external: true

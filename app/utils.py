@@ -1,10 +1,13 @@
 import asyncio
 import json
+import logging
+import os
 from functools import reduce
 from math import gcd as math_gcd
 
 import aioredis
 
+# http://kb.linuxvirtualserver.org/wiki/Weighted_Round-Robin_Scheduling
 # Supposing that there is a server set S = {S0, S1, …, Sn-1};
 # W(Si) indicates the weight of Si;
 # i indicates the server selected last time, and i is initialized with -1;
@@ -25,38 +28,33 @@ import aioredis
 #     if (W(Si) >= cw)
 #         return Si;
 # }
-
+SERVICE = os.getenv('SERVICE', 'balancer')
 
 class Scheduler:
     def __init__(self, cache):
         self.cache = cache
+        self.logger = logging.getLogger(SERVICE)
 
     async def get_server(self):
         cfg = await self.cache.get('cfg')
+        self.logger.debug('get cfg: %s', cfg)
         if cfg:
             cfg = json.loads(cfg)
-            await self.cache.watch('i')
-            tr = self.cache.multi_exec()
-            i = tr.get('i')  # cmd #1
-            if i < len(cfg) - 1:
-                tr.incr('i')  # cmd #2
-            else:  # or
-                tr.set('i', 0)  # cmd #2
-            try:
-                result = await tr.execute()
-            except aioredis.MultiExecError:
-                await self.get_server()
-            return cfg[result[0]]  # i = result[0]
+            i = await self.cache.incr('i')
+            if i < len(cfg):
+                return cfg[i]
+            else:
+                await self.cache.set('i', 0)
+                self.logger.debug('i > len(cfg), reset to 0, old i: %s', i)
+                return await self.get_server()
         else:
             return
 
     async def update_servers(self, servers):
-        if not servers:
-            return
-
         self._configurate(servers)
         scheduled = json.dumps(
-            [self._schedule() for _ in range(0, self.total_parts)])
+            [self._schedule()[0] for _ in range(0, self.total_parts)])
+        self.logger.debug('new schedule: %s', scheduled)
         await self._update_cache(scheduled)
 
     async def _update_cache(self, scheduled):
@@ -94,8 +92,10 @@ class Scheduler:
 
 class Cache:
     def __init__(self, address):
+        self.logger = logging.getLogger(SERVICE)
         loop = asyncio.get_event_loop()
         loop.run_until_complete(self._init(address))
+        self.logger.debug('connected to cache')
 
     async def _init(self, address):
         self._cache = await aioredis.create_redis_pool(
