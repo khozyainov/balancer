@@ -46,7 +46,7 @@ class Scheduler:
             cfg = json.loads(cfg)
             length = len(cfg)
             if length != self.total_parts:
-                self.modulus = json.loads(await self.cache.get('modulus', {}))
+                self.modulus = json.loads(await self.cache.get('modulus'))
                 self.total_parts = length
             i = await self.cache.incr('i')
             if i >= MODULUS_RANGE:

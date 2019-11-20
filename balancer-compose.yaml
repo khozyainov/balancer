@@ -1,11 +1,11 @@
 version: "3.5"
 
 services:
-  balancer:
+  balancer_1:
     build: 
       context: .
       dockerfile: ./docker/dev.Dockerfile
-    container_name: balancer
+    container_name: balancer_1
     ports:
       - 8000:8000
     networks:
@@ -15,6 +15,21 @@ services:
       - dev.env
     volumes:
       - ./var/log/app:/var/log/app
+
+  balancer_2:
+    build: 
+      context: .
+      dockerfile: ./docker/dev.Dockerfile
+    container_name: balancer_2
+    ports:
+      - 8001:8000
+    networks:
+      - balancer_network
+    restart: always
+    env_file:
+      - dev.env
+    # volumes:
+      # - ./var/log/app:/var/log/app
 
 networks:
   balancer_network:
