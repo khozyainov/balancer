@@ -58,7 +58,8 @@ class Scheduler:
         
     async def _update_own_properties(self, config_uuid):
         self.logger.debug('get update config')
-        self.scheduled = json.loads(await self.cache.get('scheduled'))
+        _scheduled = json.loads(await self.cache.get('scheduled'))
+        self.scheduled = {int(k):v for k,v in _scheduled.items()}
         self.modulus = json.loads(await self.cache.get('modulus'))
         self.config_uuid = config_uuid
         self.total_parts = len(self.scheduled)
