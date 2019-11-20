@@ -3,6 +3,7 @@ import logging
 import os
 from functools import reduce
 from math import gcd as math_gcd
+from uuid import uuid4
 
 from aioredis import MultiExecError
 
@@ -38,43 +39,53 @@ class Scheduler:
         self.logger = logging.getLogger(SERVICE)
         self.total_parts = 0
         self.modulus = {}
+        self.config_uuid = ''
 
     async def get_server(self):
-        cfg = await self.cache.get('cfg')
-        self.logger.debug('get cfg: %s', cfg)
-        if cfg:
-            cfg = json.loads(cfg)
-            length = len(cfg)
-            if length != self.total_parts:
-                self.modulus = json.loads(await self.cache.get('modulus'))
-                self.total_parts = length
+        config_uuid = await self.cache.get('config_uuid')
+        self.logger.debug('get config_uuid: %s', config_uuid)
+        if config_uuid:
+            if config_uuid != self.config_uuid:
+                await self._update_own_properties(config_uuid)
             i = await self.cache.incr('i')
             if i >= MODULUS_RANGE:
                 await self.cache.set('i', 0)
                 self.logger.debug('i > %s, reset to 0, old i: %s', MODULUS_RANGE, i)
-                return cfg[i % self.total_parts]
-            return cfg[self.modulus.get(i, 0)]
+                return self.scheduled[i % self.total_parts]
+            return self.scheduled[self.modulus.get(i, 0)]
         else:
             return
+        
+    async def _update_own_properties(self, config_uuid):
+        self.logger.debug('get update config')
+        self.scheduled = json.loads(await self.cache.get('scheduled'))
+        self.modulus = json.loads(await self.cache.get('modulus'))
+        self.config_uuid = config_uuid
+        self.total_parts = len(self.scheduled)
+        self.logger.debug('get updated config, schedule: %s', self.scheduled)
 
     async def update_servers(self, servers):
         self._configurate(servers)
-        scheduled_string = json.dumps(
-            [self._schedule()[0] for _ in range(self.total_parts)])
-        self.logger.debug('new schedule: %s', scheduled_string)
-        self.modulus = {i: i % self.total_parts for i in range(MODULUS_RANGE)}
-        await self._update_cache(scheduled_string, json.dumps(self.modulus))
+        scheduled = {i: self._schedule()[0] for i in range(self.total_parts)}
+        self.logger.debug('new schedule: %s', scheduled)
+        modulus = {i: i % self.total_parts for i in range(MODULUS_RANGE)}
+        await self._update_cache(scheduled, modulus)
 
-    async def _update_cache(self, scheduled_string, modulus_string):
-        await self.cache.watch('cfg', 'i', 'modulus')
+    async def _update_cache(self, scheduled, modulus):
+        config_uuid = str(uuid4())
+        await self.cache.watch('cfg', 'i', 'modulus', 'config_uuid')
         tr = self.cache.multi_exec()
-        self.cache.set('i', 0)
-        self.cache.set('cfg', scheduled_string)
-        self.cache.set('modulus', modulus_string)
+        tr.set('i', 0)
+        tr.set('scheduled', json.dumps(scheduled))
+        tr.set('modulus', json.dumps(modulus))
+        tr.set('config_uuid', config_uuid)
         try:
             await tr.execute()
+            self.scheduled = scheduled
+            self.modulus = modulus
+            self.config_uuid = config_uuid
         except MultiExecError:
-            await self._update_cache(scheduled_string, modulus_string)
+            await self._update_cache(scheduled, modulus)
 
     def _configurate(self, servers):
         self.orig_servers = dict(servers)

@@ -28,13 +28,26 @@ async def test_get_server_none(test_sch):
 
 
 async def test_get_server(test_sch):
-    CFG = '[["a", 10], ["b", 20], ["c", 3]]'
-    NEXT = 0
-    cfg = json.loads(CFG)
-    test_sch.cache.get.return_value = future(CFG)
+    SCHEDULED = {
+        0: 'a',
+        1: 'a',
+        2: 'b',
+        3: 'a',
+        4: 'b',
+        5: 'c',
+        6: 'a',
+        7: 'b',
+        8: 'c'
+    }
+    UUID = 'abcd'
+    NEXT = 5
+    test_sch.cache.get.return_value = future(UUID)
+    test_sch.config_uuid = UUID
     test_sch.cache.incr.return_value = future(NEXT)
-    test_sch.total_parts = len(cfg)
-    assert cfg[NEXT] == await test_sch.get_server()
+    test_sch.scheduled = SCHEDULED
+    test_sch.total_parts = len(SCHEDULED)
+    test_sch.modulus = {NEXT: NEXT % len(SCHEDULED)}
+    assert SCHEDULED[NEXT] == await test_sch.get_server()
 
 
 def test_configurate(test_sch):

@@ -3,8 +3,8 @@ import time
 
 from aiohttp import ClientSession
 
-NUMBER = 1000
-SEMAPHORE = 500
+NUMBER = 2000
+SEMAPHORE = 1000
 
 BASE_URL = 'http://0.0.0.0:8000'
 CONFIG_URL = f'{BASE_URL}/configurate'
