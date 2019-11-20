@@ -33,6 +33,7 @@ async def test_get_server(test_sch):
     cfg = json.loads(CFG)
     test_sch.cache.get.return_value = future(CFG)
     test_sch.cache.incr.return_value = future(NEXT)
+    test_sch.total_parts = len(cfg)
     assert cfg[NEXT] == await test_sch.get_server()
 
 

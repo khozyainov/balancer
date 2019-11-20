@@ -29,12 +29,15 @@ from aioredis import MultiExecError
 # }
 
 SERVICE = os.getenv('SERVICE', 'balancer')
+MODULUS_RANGE = 10000
 
 
 class Scheduler:
     def __init__(self, cache):
         self.cache = cache
         self.logger = logging.getLogger(SERVICE)
+        self.total_parts = 0
+        self.modulus = {}
 
     async def get_server(self):
         cfg = await self.cache.get('cfg')
@@ -42,30 +45,36 @@ class Scheduler:
         if cfg:
             cfg = json.loads(cfg)
             length = len(cfg)
-            i = await self.cache.incr('i') % length
-            if i > len(cfg)*100:
+            if length != self.total_parts:
+                self.modulus = json.loads(await self.cache.get('modulus', {}))
+                self.total_parts = length
+            i = await self.cache.incr('i')
+            if i >= MODULUS_RANGE:
                 await self.cache.set('i', 0)
-                self.logger.debug('i > len(cfg)*100, reset to 0, old i: %s', i)
-            return cfg[i]
+                self.logger.debug('i > %s, reset to 0, old i: %s', MODULUS_RANGE, i)
+                return cfg[i % self.total_parts]
+            return cfg[self.modulus.get(i, 0)]
         else:
             return
 
     async def update_servers(self, servers):
         self._configurate(servers)
-        scheduled = json.dumps(
-            [self._schedule()[0] for _ in range(0, self.total_parts)])
-        self.logger.debug('new schedule: %s', scheduled)
-        await self._update_cache(scheduled)
+        scheduled_string = json.dumps(
+            [self._schedule()[0] for _ in range(self.total_parts)])
+        self.logger.debug('new schedule: %s', scheduled_string)
+        self.modulus = {i: i % self.total_parts for i in range(MODULUS_RANGE)}
+        await self._update_cache(scheduled_string, json.dumps(self.modulus))
 
-    async def _update_cache(self, scheduled):
-        await self.cache.watch('cfg', 'i')
+    async def _update_cache(self, scheduled_string, modulus_string):
+        await self.cache.watch('cfg', 'i', 'modulus')
         tr = self.cache.multi_exec()
-        self.cache.set('cfg', scheduled)
         self.cache.set('i', 0)
+        self.cache.set('cfg', scheduled_string)
+        self.cache.set('modulus', modulus_string)
         try:
             await tr.execute()
         except MultiExecError:
-            await self._update_cache(scheduled)
+            await self._update_cache(scheduled_string, modulus_string)
 
     def _configurate(self, servers):
         self.orig_servers = dict(servers)

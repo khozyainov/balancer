@@ -3,15 +3,15 @@ import time
 
 from aiohttp import ClientSession
 
-NUMBER = 100
+NUMBER = 1000
 SEMAPHORE = 500
 
 BASE_URL = 'http://0.0.0.0:8000'
 CONFIG_URL = f'{BASE_URL}/configurate'
 CONFIG = {
-    "https://ya.ru": 8, 
-    "https://apple.com": 3, 
-    "https://vk.com": 2
+    "https://ya.ru": 10, 
+    "https://apple.com": 20, 
+    "https://vk.com": 1
 }
 
 PARAMS = {'video': '/'}
@@ -31,8 +31,9 @@ async def configurate():
 
 
 async def fetch(url, session):
-    async with session.get(url, params=PARAMS, ssl=False) as response:
-        count[response.url] = count.get(response.url, 0) + 1
+    async with session.get(url, params=PARAMS, ssl=False, allow_redirects=False) as response:
+        redirect_to = response.headers.get('Location','')
+        count[redirect_to] = count.get(redirect_to, 0) + 1
 
 
 async def bound_fetch(sem, url, session):

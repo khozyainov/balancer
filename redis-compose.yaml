@@ -9,6 +9,8 @@ services:
     restart: always
     env_file:
       - redis.env
+    sysctls:
+      net.core.somaxconn: '1011'
 
 networks:
   balancer_network:

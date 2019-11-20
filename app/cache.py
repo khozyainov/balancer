@@ -21,7 +21,7 @@ class Cache:
         self._cache = await aioredis.create_redis_pool(
             address=address,
             minsize=2,
-            maxsize=500,
+            maxsize=1000,
             encoding="utf-8",
         )
 
